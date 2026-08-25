@@ -1,7 +1,8 @@
 # khang_realsense
 
-Minimal RGB-D web server for an Intel RealSense camera. Exposes a single endpoint,
-`GET /camera/rgbd`, in the payload format consumed by SVLR's `RemoteRGBDFrameSource`.
+Minimal RGB-D web server for an Intel RealSense camera. Serves `GET /camera/rgbd` in
+the payload format consumed by SVLR's `RemoteRGBDFrameSource`, plus `GET /debug`, a
+browser page showing the live color and depth frames side by side.
 
 Extracted from the camera half of `crisp_panda_webserver.py` — no robot, no gripper,
 no ROS. Just [`realsense_webserver.py`](realsense_webserver.py) on top of `pyrealsense2`.
@@ -55,7 +56,11 @@ Then:
 
 ```bash
 curl -s http://localhost:8000/camera/rgbd | head -c 200
+xdg-open http://localhost:8000/debug          # or just open it in a browser
 ```
+
+Open `/debug` first — it is the fastest way to confirm the camera is framed, focused,
+and returning sane depth before pointing a client at `/camera/rgbd`.
 
 ## Options
 
@@ -71,6 +76,7 @@ SVLR deployment without changing the command line.
 | `--fps` | `SVLR_CAMERA_FPS` | `30` | Stream frame rate |
 | `--serial` | `REALSENSE_SERIAL` | *(auto)* | Pick a specific camera by serial |
 | `--jpeg-quality` | `SVLR_JPEG_QUALITY` | `90` | Color JPEG quality, clamped to 50–100 |
+| `--debug-refresh` | `SVLR_DEBUG_REFRESH` | `1.0` | `/debug` auto-refresh interval, seconds |
 
 Not every resolution/fps combination is valid for every model — a rejected combination
 fails at `pipeline.start()`. Check what your camera supports with `pixi run rs-enumerate-devices` (the tool ships
@@ -96,6 +102,26 @@ moments after startup, while the pipeline warms up.
 
 Depth is **aligned to the color stream**, so `depth[y, x]` corresponds to `color[y, x]`
 and the color intrinsics deproject both.
+
+### `GET /debug`
+
+An HTML page, meant for a browser rather than a client. It reloads itself every
+`--debug-refresh` seconds and shows:
+
+- the **color frame** as served;
+- the **depth frame** colorized with the turbo colormap, stretched over the 2nd–98th
+  percentile of valid depth so the scene's actual range fills the palette. Invalid
+  pixels (zero or non-finite) are black — expect them on dark, shiny, and distant
+  surfaces, and outside the sensor's minimum range;
+- a stats table: frame shapes and dtypes, depth scale, percentage of valid depth
+  pixels, min/max/median depth, the centre-pixel distance in metres, and the color
+  intrinsics with distortion coefficients.
+
+Sanity check: put an object a known distance from the lens, centre it, and compare the
+centre-pixel reading. If depth looks plausible here but a client disagrees, the problem
+is in the client, not the camera.
+
+Returns `503` under the same conditions as `/camera/rgbd`.
 
 ### Client
 
@@ -134,4 +160,5 @@ Encoding happens per request, not per frame — an idle server does no JPEG work
 | `failed to set power state` | Missing udev rules — see above. Replug after installing. |
 | `No device connected` | Check `lsusb`; USB 2.0 ports and hubs can also drop high-bandwidth streams. |
 | Persistent `503` | Camera opened but delivering no frames; the thread prints its read errors to stdout. |
+| Mostly black `/debug` depth | Normal for shiny/dark/far surfaces or objects inside the minimum range; check the "valid depth" percentage. |
 | `Couldn't resolve requests` at startup | The `--width/--height/--fps` combination is unsupported by this model. |
