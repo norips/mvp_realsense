@@ -1,11 +1,8 @@
-# khang_realsense
+# mvp_realsense
 
 Minimal RGB-D web server for an Intel RealSense camera. Serves `GET /camera/rgbd` in
 the payload format consumed by SVLR's `RemoteRGBDFrameSource`, plus `GET /debug`, a
 browser page showing the live color and depth frames side by side.
-
-Extracted from the camera half of `crisp_panda_webserver.py` — no robot, no gripper,
-no ROS. Just [`realsense_webserver.py`](realsense_webserver.py) on top of `pyrealsense2`.
 
 ## Prerequisites
 
